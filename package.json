@@ -2,10 +2,10 @@
   "name": "vercel-node-backend",
   "version": "1.0.0",
   "description": "",
-  "main": "proxy.js",
+  "main": "api/proxy.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "nodemon proxy.js"
+    "start": "nodemon api/proxy.js"
   },
   "keywords": [],
   "author": "",
