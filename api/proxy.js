@@ -12,7 +12,7 @@ app.use(helmet());
 
 // CORS configuration - simplified and more secure
 const corsOptions = {
-  origin: process.env.NODE_ENV === 'development' ? '*' : 'https://your-production-domain.com',
+  origin: process.env.NODE_ENV === 'development' ? '*' : 'https://backend-final-nu.vercel.app',
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   maxAge: 86400 // 24 hours
