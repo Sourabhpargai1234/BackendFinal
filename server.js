@@ -10,14 +10,11 @@ const app = express();
 // Security middleware
 app.use(helmet());
 
-// CORS configuration - simplified and more secure
-const corsOptions = {
-  origin: process.env.NODE_ENV === 'development' ? '*' : 'https://backend-final-nu.vercel.app',
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  maxAge: 86400 // 24 hours
-};
-app.use(require('cors')(corsOptions));
+app.use(cors({
+  origin: 'http://localhost', // or '*' to allow all origins (not recommended for production)
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 // Body parser configuration
 app.use(bodyParser.text({
