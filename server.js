@@ -139,7 +139,7 @@ function processHeaders(rawHeaders) {
 }
 
 // API proxy endpoint
-app.post('/', apiLimiter, validateInput, async (req, res) => {
+app.post('/', apiLimiter, async (req, res) => {
   try {
     const { url, method, header = [], body: postData } = req.parsedBody.api;
     const requestMethod = method.toUpperCase();
