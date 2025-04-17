@@ -50,8 +50,8 @@ const httpsAgent = new https.Agent({
 
 // XML parser helper
 const parseXml = (xml) => new Promise((resolve, reject) => {
-  parseString(xml, { 
-    explicitArray: false, 
+  parseString(xml, {
+    explicitArray: false,
     ignoreAttrs: true,
     trim: true,
     emptyTag: null // Handle empty tags consistently
@@ -68,12 +68,12 @@ const validateInput = [
     }
     next();
   },
-  
+
   // Validate request body based on content type
   async (req, res, next) => {
     try {
       const contentType = req.headers['content-type'] || '';
-      
+
       if (contentType.includes('application/json')) {
         try {
           req.parsedBody = JSON.parse(req.body);
@@ -87,17 +87,17 @@ const validateInput = [
           return res.status(400).json({ error: "Invalid XML input", details: e.message });
         }
       }
-      
+
       next();
     } catch (error) {
       next(error);
     }
   },
-  
+
   // Validate API parameters
   body('api.url').isURL(),
   body('api.method').isIn(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']),
-  
+
   (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -119,7 +119,7 @@ function tryParseJson(str) {
 // Helper function to process headers
 function processHeaders(rawHeaders) {
   const headers = {};
-  
+
   if (Array.isArray(rawHeaders)) {
     rawHeaders.forEach(h => {
       if (typeof h === 'string' && h.includes(':')) {
@@ -128,13 +128,13 @@ function processHeaders(rawHeaders) {
       }
     });
   }
-  
+
   // Add default headers if none provided
   if (Object.keys(headers).length === 0) {
     headers['Accept'] = 'application/json';
     headers['Content-Type'] = 'application/json';
   }
-  
+
   return headers;
 }
 
@@ -155,42 +155,58 @@ app.post('/', apiLimiter, async (req, res) => {
       validateStatus: () => true // Handle all status codes without throwing
     };
 
-    // Process request data
-    if (postData !== undefined && postData !== null && requestMethod !== 'GET' && requestMethod !== 'HEAD') {
-      config.data = typeof postData === 'string' ? tryParseJson(postData) : postData;
+    // Process request data - handle empty body properly
+    if (postData !== undefined && postData !== null &&
+      requestMethod !== 'GET' && requestMethod !== 'HEAD') {
+      // Only set data if it's not empty string
+      if (postData !== "") {
+        config.data = typeof postData === 'string' ? tryParseJson(postData) : postData;
+      }
     }
 
-    // Make the request
+    // Make the request - FIX: Use axios(config) instead of axios.post(config)
     const response = await axios(config);
 
-    // Forward response with appropriate content type
+    // Forward response
     const responseContentType = response.headers['content-type'] || 'application/octet-stream';
     res.set('Content-Type', responseContentType);
-    
-    // Forward status code and data
+
     return res.status(response.status).send(response.data);
 
   } catch (error) {
-    console.error('Proxy error:', error);
-    
+    console.error('Detailed proxy error:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+      response: error.response?.data
+    });
+
     if (error.code === 'ECONNABORTED') {
       return res.status(504).json({ error: "Request timeout" });
     }
-    
+
     if (error.code === 'ENOTFOUND') {
       return res.status(502).json({ error: "Failed to resolve host" });
     }
-    
-    return res.status(500).json({ 
+
+    // More detailed error response
+    return res.status(500).json({
       error: "Internal proxy error",
-      details: !isProduction ? error.message : undefined
+      details: !isProduction ? {
+        message: error.message,
+        code: error.code,
+        ...(error.response && {
+          status: error.response.status,
+          responseData: error.response.data
+        })
+      } : undefined
     });
   }
 });
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.status(200).json({ 
+  res.status(200).json({
     status: 'healthy',
     uptime: process.uptime(),
     timestamp: new Date().toISOString()
@@ -205,7 +221,7 @@ app.use((req, res) => {
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
-  res.status(500).json({ 
+  res.status(500).json({
     error: "Internal server error",
     details: !isProduction ? err.stack : undefined
   });
