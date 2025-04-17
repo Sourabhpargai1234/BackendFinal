@@ -3,8 +3,12 @@ const bodyParser = require('body-parser');
 const axios = require('axios');
 const { parseString } = require('xml2js');
 const https = require('https');
+const helmet = require('helmet');
 
 const app = express();
+
+// Security middleware
+app.use(helmet());
 
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -19,6 +23,12 @@ app.options('*', (req, res) => {
   res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.sendStatus(200);
 });
+
+app.use(cors({
+  origin: '*', // or '*' to allow all origins (not recommended for production)
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 // Body parser configuration
 app.use(bodyParser.text({
