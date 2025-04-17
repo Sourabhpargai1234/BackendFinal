@@ -139,7 +139,7 @@ function processHeaders(rawHeaders) {
 }
 
 // API proxy endpoint
-app.post('/', apiLimiter, async (req, res) => {
+app.post('/', async (req, res) => {
   try {
     console.log('string', req.parsedBody.api);
 
@@ -149,11 +149,7 @@ app.post('/', apiLimiter, async (req, res) => {
     const config = {
       method: requestMethod,
       url,
-      headers: processHeaders(header),
-      httpsAgent,
-      timeout: 10000, // 10 second timeout
-      maxRedirects: 5,
-      validateStatus: () => true // Handle all status codes without throwing
+      headers: header,
     };
 
     // Process request data - handle empty body properly
