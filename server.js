@@ -95,7 +95,7 @@ const validateInput = [
   },
   
   // Validate API parameters
-  body('api.url').isURL().withMessage('Invalid URL format'),
+  body('api.url').isURL(),
   body('api.method').isIn(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'])
     .withMessage('Invalid HTTP method'),
   
