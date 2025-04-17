@@ -141,9 +141,10 @@ function processHeaders(rawHeaders) {
 // API proxy endpoint
 app.post('/', apiLimiter, async (req, res) => {
   try {
+    console.log('string', req.parsedBody.api);
+
     const { url, method, header = [], body: postData } = req.parsedBody.api;
     const requestMethod = method.toUpperCase();
-
     // Prepare axios config
     const config = {
       method: requestMethod,
