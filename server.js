@@ -11,7 +11,7 @@ const app = express();
 app.use(helmet());
 
 app.use(cors({
-  origin: 'http://localhost', // or '*' to allow all origins (not recommended for production)
+  origin: '*', // or '*' to allow all origins (not recommended for production)
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
