@@ -96,8 +96,7 @@ const validateInput = [
   
   // Validate API parameters
   body('api.url').isURL(),
-  body('api.method').isIn(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'])
-    .withMessage('Invalid HTTP method'),
+  body('api.method').isIn(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']),
   
   (req, res, next) => {
     const errors = validationResult(req);
