@@ -141,7 +141,7 @@ function processHeaders(rawHeaders) {
 // API proxy endpoint
 app.post('/', async (req, res) => {
   try {
-    console.log('string', req.parsedBody.api);
+    console.log('string', req);
 
     let { url, method, header = {}, body: postData } = parsedBody.api;
 
@@ -153,7 +153,7 @@ app.post('/', async (req, res) => {
         return acc;
       }, {});
     }
-    
+
     const requestMethod = method.toUpperCase();
     // Prepare axios config
     const config = {
