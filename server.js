@@ -141,9 +141,9 @@ function processHeaders(rawHeaders) {
 // API proxy endpoint
 app.post('/', async (req, res) => {
   try {
-    console.log('string', req);
+    console.log('string', req.body.api);
 
-    let { url, method, header = {}, body: postData } = parsedBody.api;
+    let { url, method, header = {}, body: postData } = req.body.api;
 
     // Optional: Convert header array to object (if someone still sends it incorrectly)
     if (Array.isArray(header)) {
