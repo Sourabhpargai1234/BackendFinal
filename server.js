@@ -10,21 +10,11 @@ const { body, validationResult } = require('express-validator');
 
 const app = express();
 
-// Environment configuration
 const isProduction = process.env.NODE_ENV === 'production';
 const PORT = process.env.PORT || 3000;
 
-// Security middleware
-app.use(helmet());
+app.use(express());
 
-// Rate limiting
-const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later'
-});
-
-// CORS configuration
 const corsOptions = {
   origin: isProduction ? process.env.ALLOWED_ORIGINS?.split(',') || '*' : '*',
   methods: ['GET', 'POST', 'OPTIONS'],
