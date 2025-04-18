@@ -143,7 +143,7 @@ app.post('/', async (req, res) => {
   try {
     console.log('string', req.body);
     const { api = {} } = req.body || {};
-    const { url, method, header, body: postData } = api;    
+    const { url, method = 'GET', header = {}, body: postData = {} } = api;   
 
     // Optional: Convert header array to object (if someone still sends it incorrectly)
     if (Array.isArray(header)) {
