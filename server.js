@@ -143,7 +143,17 @@ app.post('/', async (req, res) => {
   try {
     console.log('string', req.parsedBody.api);
 
-    const { url, method, header = [], body: postData } = req.parsedBody.api;
+    let { url, method, header = {}, body: postData } = parsedBody.api;
+
+    // Optional: Convert header array to object (if someone still sends it incorrectly)
+    if (Array.isArray(header)) {
+      header = header.reduce((acc, item) => {
+        const [key, value] = item.split(':').map(s => s.trim());
+        if (key && value) acc[key] = value;
+        return acc;
+      }, {});
+    }
+    
     const requestMethod = method.toUpperCase();
     // Prepare axios config
     const config = {
