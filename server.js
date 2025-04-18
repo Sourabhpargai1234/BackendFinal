@@ -1,5 +1,4 @@
 const express = require('express');
-const bodyParser = require('body-parser');
 const axios = require('axios');
 const { parseString } = require('xml2js');
 const https = require('https');
@@ -13,81 +12,84 @@ const app = express();
 const isProduction = process.env.NODE_ENV === 'production';
 const PORT = process.env.PORT || 3000;
 
-app.use(express());
+// Security middleware
+app.use(helmet());
+app.disable('x-powered-by');
 
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100 // limit each IP to 100 requests per windowMs
+});
+app.use(limiter);
+
+// CORS configuration
 const corsOptions = {
   origin: isProduction ? process.env.ALLOWED_ORIGINS?.split(',') || '*' : '*',
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   optionsSuccessStatus: 200
 };
-
 app.use(cors(corsOptions));
 
-// Body parser configuration
-app.use(bodyParser.text({
-  type: ['application/json', 'application/xml', 'text/xml'],
-  limit: '10mb' // Prevent large payload attacks
-}));
+// Body parsers
+app.use(express.json());
+app.use(express.text({ type: ['text/xml', 'application/xml'] }));
 
-// Reusable HTTPS agent
+// HTTPS agent
 const httpsAgent = new https.Agent({
-  rejectUnauthorized: isProduction, // Only validate certs in production
+  rejectUnauthorized: isProduction,
   keepAlive: true,
   maxSockets: 100,
   timeout: 10000
 });
 
-// XML parser helper
+// XML parser
 const parseXml = (xml) => new Promise((resolve, reject) => {
   parseString(xml, {
     explicitArray: false,
     ignoreAttrs: true,
     trim: true,
-    emptyTag: null // Handle empty tags consistently
+    emptyTag: null
   }, (err, result) => err ? reject(err) : resolve(result));
 });
 
 // Input validation middleware
 const validateInput = [
-  // Validate Content-Type header
+  // Content type validation
   (req, res, next) => {
-    const contentType = req.headers['content-type'] || '';
+    const contentType = req.get('Content-Type');
+    if (!contentType) {
+      return res.status(400).json({ error: "Content-Type header is required" });
+    }
     if (!['application/json', 'application/xml', 'text/xml'].some(type => contentType.includes(type))) {
       return res.status(415).json({ error: "Unsupported Content-Type" });
     }
     next();
   },
 
-  // Validate request body based on content type
+  // Body parsing
   async (req, res, next) => {
     try {
-      const contentType = req.headers['content-type'] || '';
-
-      if (contentType.includes('application/json')) {
-        try {
-          req.parsedBody = JSON.parse(req.body);
-        } catch (e) {
-          return res.status(400).json({ error: "Invalid JSON input", details: e.message });
-        }
-      } else {
-        try {
-          req.parsedBody = await parseXml(req.body);
-        } catch (e) {
-          return res.status(400).json({ error: "Invalid XML input", details: e.message });
-        }
+      if (req.is('json')) {
+        req.parsedBody = req.body;
+      } else if (req.is(['xml', 'text/xml'])) {
+        req.parsedBody = await parseXml(req.body);
       }
-
       next();
-    } catch (error) {
-      next(error);
+    } catch (e) {
+      return res.status(400).json({ error: "Invalid input format", details: e.message });
     }
   },
 
-  // Validate API parameters
-  body('api.url').isURL(),
-  body('api.method').isIn(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']),
+  // API parameter validation
+  body('api.url').isURL().withMessage('Invalid URL format'),
+  body('api.method').isIn(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'])
+    .withMessage('Invalid HTTP method'),
+  body('api.header').optional().isObject().withMessage('Headers must be an object'),
+  body('api.body').optional(),
 
+  // Validation result handling
   (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -97,117 +99,86 @@ const validateInput = [
   }
 ];
 
-// Helper function to safely parse JSON
-function tryParseJson(str) {
+// Helper functions
+const tryParseJson = (str) => {
   try {
     return JSON.parse(str);
-  } catch (e) {
+  } catch {
     return str;
   }
-}
+};
 
-// Helper function to process headers
-function processHeaders(rawHeaders) {
-  const headers = {};
-
-  if (Array.isArray(rawHeaders)) {
-    rawHeaders.forEach(h => {
-      if (typeof h === 'string' && h.includes(':')) {
-        const [key, ...value] = h.split(':');
-        headers[key.trim()] = value.join(':').trim();
-      }
-    });
-  }
-
-  // Add default headers if none provided
-  if (Object.keys(headers).length === 0) {
-    headers['Accept'] = 'application/json';
+const processHeaders = (rawHeaders = {}) => {
+  const headers = { ...rawHeaders };
+  
+  // Set default headers if not provided
+  if (!headers['Accept']) headers['Accept'] = 'application/json';
+  if (!headers['Content-Type'] && !headers['content-type']) {
     headers['Content-Type'] = 'application/json';
   }
 
   return headers;
-}
+};
 
 // API proxy endpoint
-app.post('/', async (req, res) => {
+app.post('/', validateInput, async (req, res) => {
   try {
-    console.log('Raw body:', req.body); // First verify raw body
-    // Safely get the api object
-    const api = req.body?.api || {};
-    console.log('API object:', api); // Verify this shows your data
-    
-    // Destructure with proper defaults
+    const { api } = req.parsedBody;
     const { 
-      url = '', 
+      url, 
       method = 'GET', 
       header = {}, 
       body: postData = {} 
-    } = api;   
-    console.log('Destructured values:', { url, method, header, postData });  
+    } = api;
 
-    // Optional: Convert header array to object (if someone still sends it incorrectly)
-    if (Array.isArray(header)) {
-      header = header.reduce((acc, item) => {
-        const [key, value] = item.split(':').map(s => s.trim());
-        if (key && value) acc[key] = value;
-        return acc;
-      }, {});
-    }
-
+    const processedHeaders = processHeaders(header);
     const requestMethod = method.toUpperCase();
-    // Prepare axios config
+
     const config = {
       method: requestMethod,
       url,
-      headers: header,
+      headers: processedHeaders,
+      httpsAgent,
+      timeout: 10000
     };
 
-    // Process request data - handle empty body properly
-    if (postData !== undefined && postData !== null &&
-      requestMethod !== 'GET' && requestMethod !== 'HEAD') {
-      // Only set data if it's not empty string
-      if (postData !== "") {
+    // Add data for non-GET/HEAD requests
+    if (requestMethod !== 'GET' && requestMethod !== 'HEAD') {
+      if (postData && Object.keys(postData).length > 0) {
         config.data = typeof postData === 'string' ? tryParseJson(postData) : postData;
       }
     }
 
-    // Make the request - FIX: Use axios(config) instead of axios.post(config)
     const response = await axios(config);
 
     // Forward response
-    const responseContentType = response.headers['content-type'] || 'application/octet-stream';
-    res.set('Content-Type', responseContentType);
-
-    return res.status(response.status).send(response.data);
+    res.set(response.headers)
+      .status(response.status)
+      .send(response.data);
 
   } catch (error) {
-    console.error('Detailed proxy error:', {
+    console.error('Proxy error:', {
       message: error.message,
       code: error.code,
       stack: error.stack,
       response: error.response?.data
     });
 
-    if (error.code === 'ECONNABORTED') {
-      return res.status(504).json({ error: "Request timeout" });
+    if (error.response) {
+      // Forward error response from target API
+      res.status(error.response.status)
+        .set(error.response.headers)
+        .send(error.response.data);
+    } else if (error.code === 'ECONNABORTED') {
+      res.status(504).json({ error: "Request timeout" });
+    } else if (error.code === 'ENOTFOUND') {
+      res.status(502).json({ error: "Failed to resolve host" });
+    } else {
+      res.status(500).json({
+        error: "Internal proxy error",
+        details: !isProduction ? error.message : undefined
+      });
     }
-
-    if (error.code === 'ENOTFOUND') {
-      return res.status(502).json({ error: "Failed to resolve host" });
-    }
-
-    // More detailed error response
-    return res.status(500).json({
-      error: "Internal proxy error",
-      details: !isProduction ? {
-        message: error.message,
-        code: error.code,
-        ...(error.response && {
-          status: error.response.status,
-          responseData: error.response.data
-        })
-      } : undefined
-    });
   }
 });
 
@@ -225,9 +196,9 @@ app.use((req, res) => {
   res.status(404).json({ error: "Endpoint not found" });
 });
 
-// Error handling middleware
+// Error handler
 app.use((err, req, res, next) => {
-  console.error('Unhandled error:', err);
+  console.error('Server error:', err);
   res.status(500).json({
     error: "Internal server error",
     details: !isProduction ? err.stack : undefined
@@ -249,6 +220,6 @@ process.on('SIGTERM', () => {
   });
 });
 
-process.on('unhandledRejection', (reason) => {
-  console.error('Unhandled Rejection:', reason);
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled rejection:', err);
 });
