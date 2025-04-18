@@ -141,7 +141,7 @@ function processHeaders(rawHeaders) {
 // API proxy endpoint
 app.post('/', async (req, res) => {
   try {
-    console.log('string', req.body.api);
+    console.log('string', req.body);
 
     let { url, method, header = {}, body: postData } = req.body.api;
 
