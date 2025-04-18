@@ -141,9 +141,19 @@ function processHeaders(rawHeaders) {
 // API proxy endpoint
 app.post('/', async (req, res) => {
   try {
-    console.log('string', req.body);
-    const { api = {} } = req.body || {};
-    const { url, method = 'GET', header = {}, body: postData = {} } = api;   
+    console.log('Raw body:', req.body); // First verify raw body
+    // Safely get the api object
+    const api = req.body?.api || {};
+    console.log('API object:', api); // Verify this shows your data
+    
+    // Destructure with proper defaults
+    const { 
+      url = '', 
+      method = 'GET', 
+      header = {}, 
+      body: postData = {} 
+    } = api;   
+    console.log('Destructured values:', { url, method, header, postData });  
 
     // Optional: Convert header array to object (if someone still sends it incorrectly)
     if (Array.isArray(header)) {
