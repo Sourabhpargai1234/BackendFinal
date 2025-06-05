@@ -13,6 +13,7 @@ const isProduction = process.env.NODE_ENV === 'production';
 const PORT = process.env.PORT || 3000;
 
 // Security middleware
+app.set('trust proxy', true);
 app.use(helmet());
 app.disable('x-powered-by');
 
